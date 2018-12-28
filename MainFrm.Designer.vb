@@ -100,13 +100,16 @@ Partial Class MainFrm
         '열기ToolStripMenuItem
         '
         Me.열기ToolStripMenuItem.Name = "열기ToolStripMenuItem"
-        Me.열기ToolStripMenuItem.Size = New System.Drawing.Size(98, 22)
+        Me.열기ToolStripMenuItem.ShortcutKeyDisplayString = ""
+        Me.열기ToolStripMenuItem.ShortcutKeys = CType((System.Windows.Forms.Keys.Control Or System.Windows.Forms.Keys.O), System.Windows.Forms.Keys)
+        Me.열기ToolStripMenuItem.Size = New System.Drawing.Size(152, 22)
         Me.열기ToolStripMenuItem.Text = "열기"
         '
         '저장ToolStripMenuItem
         '
         Me.저장ToolStripMenuItem.Name = "저장ToolStripMenuItem"
-        Me.저장ToolStripMenuItem.Size = New System.Drawing.Size(98, 22)
+        Me.저장ToolStripMenuItem.ShortcutKeys = CType((System.Windows.Forms.Keys.Control Or System.Windows.Forms.Keys.S), System.Windows.Forms.Keys)
+        Me.저장ToolStripMenuItem.Size = New System.Drawing.Size(152, 22)
         Me.저장ToolStripMenuItem.Text = "저장"
         '
         '종료ToolStripMenuItem
