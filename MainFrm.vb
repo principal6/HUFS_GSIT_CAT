@@ -1,9 +1,10 @@
 ﻿Imports System.ComponentModel
+Imports Microsoft.Office.Interop
 
 Public Class MainFrm
     Dim g_FontMain As New Font("맑은 고딕", 12, FontStyle.Regular)
     Dim g_FontSentence As New Font("맑은 고딕", 11, FontStyle.Regular)
-    Dim g_SentenceID() As Long
+    Dim g_SentenceID(1000) As Long
     Dim g_NumSentences As Long
     Dim g_sTransSentence(1000) As String    '총 1000 문장
     Dim g_nCurSentID As Long
@@ -11,12 +12,12 @@ Public Class MainFrm
     Dim g_PrevSTCursor As Long
 
     Public Sub UpdateTT()
-        TBTT.Text = Nothing
+        RTBTT.Text = Nothing
 
         If g_NumSentences = 0 Then Exit Sub
 
         For i = 0 To g_NumSentences - 1
-            TBTT.Text = TBTT.Text & g_sTransSentence(i) & vbCrLf
+            RTBTT.Text = RTBTT.Text & g_sTransSentence(i) & vbCrLf
         Next
     End Sub
 
@@ -30,8 +31,6 @@ Public Class MainFrm
                 g_NumSentences = g_NumSentences + 1
             End If
         Next
-
-        ReDim g_SentenceID(g_NumSentences)
 
         Dim nTempNumSentences As Long = 0
         For i = 1 To sText.Length
@@ -105,11 +104,11 @@ Public Class MainFrm
     End Function
 
     Public Sub FindWordAndSentences()
-        g_PrevSTCursor = TBST.SelectionStart
+        g_PrevSTCursor = RTBST.SelectionStart
 
-        TBWord.Text = FindWordInText(TBST.Text, g_PrevSTCursor)
+        TBWord.Text = FindWordInText(RTBST.Text, g_PrevSTCursor)
         g_nCurSentID = GetSentenceID(g_PrevSTCursor)
-        TBSTSentence.Text = GetSentenceText(TBST.Text, g_nCurSentID)
+        TBSTSentence.Text = GetSentenceText(RTBST.Text, g_nCurSentID)
 
         LBCurSentence.Text = "현재 문장: " & g_nCurSentID + 1 & " / " & g_NumSentences
 
@@ -121,16 +120,16 @@ Public Class MainFrm
     End Sub
 
     Private Sub MainFrm_Load(sender As Object, e As EventArgs) Handles Me.Load
-        TBST.Font = g_FontMain
-        TBST.ContextMenuStrip = CMS1
-        TBTT.Font = g_FontMain
+        RTBST.Font = g_FontMain
+        RTBST.ContextMenuStrip = CMS1
+        RTBTT.Font = g_FontMain
 
         TBSTSentence.Font = g_FontSentence
         TBTTSentence.Font = g_FontSentence
     End Sub
 
-    Private Sub TBST_KeyUp(sender As Object, e As KeyEventArgs) Handles TBST.KeyUp
-        If TBST.Text.Length = 0 Then Exit Sub
+    Private Sub RTBST_KeyUp(sender As Object, e As KeyEventArgs) Handles RTBST.KeyUp
+        If RTBST.Text.Length = 0 Then Exit Sub
 
         FindWordAndSentences()
 
@@ -138,20 +137,20 @@ Public Class MainFrm
             TBTTSentence.Focus()
         End If
     End Sub
-    Private Sub TBST_MouseUp(sender As Object, e As MouseEventArgs) Handles TBST.MouseUp
-        If TBST.Text.Length = 0 Then Exit Sub
+    Private Sub RTBST_MouseUp(sender As Object, e As MouseEventArgs) Handles RTBST.MouseUp
+        If RTBST.Text.Length = 0 Then Exit Sub
 
         FindWordAndSentences()
     End Sub
 
-    Private Sub TBST_KeyPress(sender As Object, e As KeyPressEventArgs) Handles TBST.KeyPress
+    Private Sub RTBST_KeyPress(sender As Object, e As KeyPressEventArgs) Handles RTBST.KeyPress
         If e.KeyChar = Convert.ToChar(1) Then
-            TBST.SelectAll()
+            RTBST.SelectAll()
         End If
     End Sub
 
-    Private Sub TBST_TextChanged(sender As Object, e As EventArgs) Handles TBST.TextChanged
-        DevideSentences(TBST.Text)
+    Private Sub RTBST_TextChanged(sender As Object, e As EventArgs) Handles RTBST.TextChanged
+        DevideSentences(RTBST.Text)
     End Sub
 
     Private Sub TBTTSentence_KeyDown(sender As Object, e As KeyEventArgs) Handles TBTTSentence.KeyDown
@@ -161,13 +160,45 @@ Public Class MainFrm
 
             UpdateTT()
 
-            TBST.Focus()
-            TBST.SelectionStart = g_PrevSTCursor
+            RTBST.Focus()
+            RTBST.SelectionStart = g_PrevSTCursor
         ElseIf e.KeyCode = Keys.Escape Then
-            TBST.Focus()
-            TBST.SelectionStart = g_PrevSTCursor
+            RTBST.Focus()
+            RTBST.SelectionStart = g_PrevSTCursor
         End If
     End Sub
 
+    Private Sub 열기ToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles 열기ToolStripMenuItem.Click
+        OFD.Title = "파일 열기"
+        OFD.Filter = "워드 파일(*.docx)|*.docx"
+        OFD.FileName = Application.ExecutablePath
+        OFD.ShowDialog()
+
+        If OFD.FileName IsNot Nothing Then
+            Dim objWord As New Word.Application
+            Dim objDoc As Word.Document
+
+            Try
+                objDoc = objWord.Documents.Open(OFD.FileName)
+                objDoc.Content.Copy()
+                RTBST.Paste()
+                RTBTT.Paste()
+                RTBST.ZoomFactor = 0.8
+                RTBTT.ZoomFactor = 0.8
+                objDoc.Close()
+                objWord.Quit()
+                objWord = Nothing
+            Catch ex As Exception
+                MsgBox("오류")
+            End Try
+        End If
+    End Sub
+
+    Private Sub TSBFont_Click(sender As Object, e As EventArgs) Handles TSBFont.Click
+
+        FD.ShowDialog()
+
+        RTBST.SelectionFont = FD.Font
+    End Sub
 End Class
 
