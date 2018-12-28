@@ -67,18 +67,18 @@ Partial Class MainFrm
         Me.TBSTSentence.Name = "TBSTSentence"
         Me.TBSTSentence.ReadOnly = True
         Me.TBSTSentence.ScrollBars = System.Windows.Forms.ScrollBars.Both
-        Me.TBSTSentence.Size = New System.Drawing.Size(319, 168)
+        Me.TBSTSentence.Size = New System.Drawing.Size(407, 151)
         Me.TBSTSentence.TabIndex = 3
         '
         'TBTTSentence
         '
         Me.TBTTSentence.AcceptsTab = True
         Me.TBTTSentence.BackColor = System.Drawing.Color.LightGreen
-        Me.TBTTSentence.Location = New System.Drawing.Point(339, 27)
+        Me.TBTTSentence.Location = New System.Drawing.Point(425, 27)
         Me.TBTTSentence.Multiline = True
         Me.TBTTSentence.Name = "TBTTSentence"
         Me.TBTTSentence.ScrollBars = System.Windows.Forms.ScrollBars.Both
-        Me.TBTTSentence.Size = New System.Drawing.Size(319, 168)
+        Me.TBTTSentence.Size = New System.Drawing.Size(407, 151)
         Me.TBTTSentence.TabIndex = 5
         '
         'MSMainMenu
@@ -121,7 +121,7 @@ Partial Class MainFrm
         '
         'WBTT
         '
-        Me.WBTT.Location = New System.Drawing.Point(670, 201)
+        Me.WBTT.Location = New System.Drawing.Point(670, 184)
         Me.WBTT.MinimumSize = New System.Drawing.Size(20, 20)
         Me.WBTT.Name = "WBTT"
         Me.WBTT.Size = New System.Drawing.Size(326, 351)
@@ -129,7 +129,7 @@ Partial Class MainFrm
         '
         'LVST
         '
-        Me.LVST.Location = New System.Drawing.Point(12, 201)
+        Me.LVST.Location = New System.Drawing.Point(12, 184)
         Me.LVST.Name = "LVST"
         Me.LVST.Size = New System.Drawing.Size(646, 351)
         Me.LVST.TabIndex = 17
@@ -139,7 +139,7 @@ Partial Class MainFrm
         '
         Me.AutoScaleDimensions = New System.Drawing.SizeF(7.0!, 12.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
-        Me.ClientSize = New System.Drawing.Size(1008, 562)
+        Me.ClientSize = New System.Drawing.Size(1008, 544)
         Me.Controls.Add(Me.LVST)
         Me.Controls.Add(Me.WBTT)
         Me.Controls.Add(Me.MSMainMenu)
