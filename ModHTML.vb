@@ -4,10 +4,39 @@
     Public Const MAX_HTMLSUBSEGMENT As Integer = 30000
     Public Const MAX_PHRASE As Integer = 50000
     Public Const PHRASE_PER_SUBSEG As Integer = 1000
+    Public Const MAX_NAS As Integer = 1000
+
+    Public Structure HTML_TEXT
+        Dim BefBody As String
+        Dim Body As String
+        Dim AftBody As String
+
+        Public Function GetText() As String
+            GetText = BefBody & Body & AftBody
+        End Function
+
+        Public Sub Clear()
+            BefBody = Nothing
+            Body = Nothing
+            AftBody = Nothing
+        End Sub
+
+        Public Sub ReadFromText(ByVal HTMLText As String)
+            BefBody = HTML_GetBeforeNodeHead(HTMLText, "body")
+            Body = HTML_GetIntraNode(HTMLText, "body")
+            AftBody = HTML_GetAfterNodeTail(HTMLText, "body")
+        End Sub
+
+    End Structure
 
     Public Structure HTML_SEG
         Dim Content As String
         Dim SubSegCount As Integer
+
+        Public Sub Clear()
+            Content = Nothing
+            SubSegCount = 0
+        End Sub
     End Structure
 
     Public Structure HTML_SUBSEG
@@ -15,6 +44,13 @@
         Dim IndexInSeg As Integer
         Dim ParentSegID As Integer
         Dim PhraseCount As Integer
+
+        Public Sub Clear()
+            Content = Nothing
+            IndexInSeg = 0
+            ParentSegID = 0
+            PhraseCount = 0
+        End Sub
     End Structure
 
     Public Structure HTML_PHRASE
@@ -22,6 +58,13 @@
         Dim IndexInSubSeg As Integer
         Dim ParentSubSegID As Integer
         Dim ParentSegID As Integer
+
+        Public Sub Clear()
+            Content = Nothing
+            IndexInSubSeg = 0
+            ParentSubSegID = 0
+            ParentSegID = 0
+        End Sub
     End Structure
 
     Public Structure HTML_NODE_INFO
@@ -30,11 +73,59 @@
         Dim ElementName() As String
     End Structure
 
-    Public Structure HTML_NODEANDTEXT
-        Dim NODEANDTEXT As String
-        Dim StartIndex As Integer
-        Dim EndIndex As Integer
+    Public Structure HTML_NAS
+        Dim NodeName As String
+        Dim NodeText As String
+
+        Public Sub Clear()
+            NodeName = Nothing
+            NodeText = Nothing
+        End Sub
     End Structure
+
+    Public Structure HTML_NASSet '### Node And String의 준말★★
+        Dim NASCount As Integer
+        Dim NAS() As HTML_NAS
+    End Structure
+
+    Public Sub HTML_DeleteSpanLang(ByRef Seg As HTML_SEG)
+        Dim HTMLNode As HTML_NODE_INFO
+
+        For j = 1 To Seg.Content.Length
+            If Mid(Seg.Content, j, 1) = "<" Then
+                For k = j + 1 To Seg.Content.Length
+                    If Mid(Seg.Content, k, 1) = ">" Then
+                        '### Node 하나를 찾음
+                        HTMLNode = HTML_GetNodeInfo(Mid(Seg.Content, j, k - j + 1))
+
+                        If HTMLNode.NodeName = "span" And HTMLNode.ElementCount = 1 And HTMLNode.ElementName(0) = "lang" Then
+                            '### 찾은 Node가 <span lang=~~>일 경우 없애자!!★★
+                            For l = k + 1 To Seg.Content.Length
+                                If Mid(Seg.Content, l, 7) = "</span>" Then
+                                    Dim sLeft As String = Nothing
+                                    Dim sMid As String = Nothing
+                                    Dim sRight As String = Nothing
+
+                                    sLeft = Strings.Left(Seg.Content, j - 1)
+                                    sMid = Mid(Seg.Content, k + 1, l - k - 1)
+                                    sRight = Strings.Mid(Seg.Content, l + 7, Seg.Content.Length)
+
+                                    Seg.Content = sLeft & sMid & sRight
+                                    Exit For
+                                End If
+                            Next
+
+                            Exit For
+                        Else
+                            '### 그렇지 않은 Node일 경우
+                            j = k
+                            Exit For
+                        End If
+                    End If
+                Next
+            End If
+        Next
+    End Sub
 
     Public Function HTML_DeleteNodeHeadTail(ByVal HTMLText As String, ByVal NodeName As String) As String
         HTML_DeleteNodeHeadTail = Nothing
@@ -333,6 +424,188 @@
         HTML_Encode = T_Output
     End Function
 
+    Public Function GetSegFromHTMLBody(ByVal HTMLBody As String, ByRef Seg() As HTML_SEG) As Integer
+        GetSegFromHTMLBody = 0
+
+        Dim SegCount As Integer = 0
+
+        For i = 1 To HTMLBody.Length
+            If Mid(HTMLBody, i, 2) = "<p" Then
+
+                '### <p ~>인 경우!
+                SegCount = SegCount + 1
+                For j = i + 1 To HTMLBody.Length
+                    If Mid(HTMLBody, j, 4) = "</p>" Then
+                        Seg(SegCount - 1).Content = Mid(HTMLBody, i, j - i + 4)
+                        Seg(SegCount - 1).Content = Seg(SegCount - 1).Content.Replace(vbCrLf, " ")
+                        i = j + 3
+                        Exit For
+                    End If
+                Next
+            ElseIf Mid(HTMLBody, i, 1) = "<" Then
+                '### <p ~>는 아니지만 노드가 있는 경우 다음 <p ~> / </body> 전까지 저장해 두자 (그래야 나중에 복원할 수 있으니까)
+
+                If Mid(HTMLBody, i, 7) = "</body>" Then
+                    '### </body>나오면 Phrase 파싱 끝내기!
+                    Exit For
+                End If
+
+                SegCount = SegCount + 1
+                For j = i + 1 To HTMLBody.Length
+                    If Mid(HTMLBody, j, 2) = "<p" Or j = HTMLBody.Length Then
+                        Seg(SegCount - 1).Content = Mid(HTMLBody, i, j - i)
+                        Seg(SegCount - 1).Content = Seg(SegCount - 1).Content.Replace(vbCrLf, " ")
+                        i = j - 1
+                        Exit For
+                    End If
+                Next
+            End If
+        Next
+
+        GetSegFromHTMLBody = SegCount
+    End Function
+
+    Public Function GetNASSet(ByVal HTMLText As String) As HTML_NASSet
+        Dim Output As HTML_NASSet
+        ReDim Output.NAS(MAX_NAS)
+        Output.NASCount = 0
+
+        For i = 1 To HTMLText.Length
+            If Mid(HTMLText, i, 1) = "<" Then
+                For j = i + 1 To HTMLText.Length
+                    If Mid(HTMLText, j, 1) = ">" Then
+                        '### Node Head를 찾음
+
+                        For k = i To j
+                            If Mid(HTMLText, k, 1) = " " Or Mid(HTMLText, k, 1) = ">" Then
+                                '### Node의 이름 구하기
+                                Output.NASCount = Output.NASCount + 1
+                                Output.NAS(Output.NASCount - 1).NodeName = Mid(HTMLText, i + 1, k - i - 1)
+                                Exit For
+                            End If
+                        Next
+
+                        '### 반드시 Step -1로 거꾸로 찾아야만 제대로 Node Tail을 찾음!★★★
+                        For k = HTMLText.Length To 1 Step -1
+                            If Mid(HTMLText, k, Output.NAS(Output.NASCount - 1).NodeName.Length + 3) =
+                                "</" & Output.NAS(Output.NASCount - 1).NodeName & ">" Then
+                                '### Node Tail 찾기
+                                Output.NAS(Output.NASCount - 1).NodeText =
+                                    Mid(HTMLText, i, k + Output.NAS(Output.NASCount - 1).NodeName.Length + 3 - i)
+                                i = k + Output.NAS(Output.NASCount - 1).NodeName.Length + 2
+                                Exit For
+                            End If
+                        Next
+
+                        Exit For
+                    End If
+                Next
+            Else
+                '### 노드 사이 텍스트를 찾음!
+                Output.NASCount = Output.NASCount + 1
+                Output.NAS(Output.NASCount - 1).NodeName = "TEXT"
+
+                For j = i + 1 To HTMLText.Length
+                    If Mid(HTMLText, j, 1) = "<" Then
+                        Output.NAS(Output.NASCount - 1).NodeText = Mid(HTMLText, i, j - i)
+                        i = j - 1
+                        Exit For
+                    ElseIf j = HTMLText.Length Then
+                        Output.NAS(Output.NASCount - 1).NodeText = Mid(HTMLText, i)
+                        i = j
+                        Exit For
+                    End If
+                Next
+            End If
+        Next
+
+        ReDim Preserve Output.NAS(Output.NASCount - 1)
+
+        GetNASSet = Output
+    End Function
+
+    Public Function GetSubSegFromSeg(ByVal SegID As Integer, ByRef Seg As HTML_SEG,
+                                     ByRef SubSeg() As HTML_SUBSEG, ByRef GlobalSubSegCount As Integer) As Boolean
+        GetSubSegFromSeg = False
+
+        Dim T_SubSegCountPerSeg As Integer = 0
+        T_SubSegCountPerSeg = 0
+
+        If Strings.Left(Seg.Content, 2) = "<p" Then
+
+            '### Segment 내용이 <p ~>일 때만 SubSeg를 찾는다!★★
+
+            '### 01: Node 사이 문자열 개수 세기
+            Dim T_StringCount As Integer = 0
+            For j = 1 To Seg.Content.Length
+                If Mid(Seg.Content, j, 1) = "<" Then
+                    For k = j + 1 To Seg.Content.Length
+                        If Mid(Seg.Content, k, 1) = ">" Then
+                            '### Node 하나를 찾음
+                            j = k
+                            Exit For
+                        End If
+                    Next
+                Else
+                    For k = j To Seg.Content.Length
+                        If Mid(Seg.Content, k, 1) = "<" Then
+                            '### Node 사이의 문자열을 찾은 경우
+                            T_StringCount = T_StringCount + 1
+                            j = k - 1
+                            Exit For
+                        ElseIf k = Seg.Content.Length Then
+                            T_StringCount = T_StringCount + 1
+                            j = k
+                            Exit For
+                        End If
+                    Next
+                End If
+            Next
+
+            '### SubSeg 가구분★
+            Dim T_SegContent As String = Seg.Content
+            Dim T_NAS As HTML_NASSet
+            Dim T_bLoop As Boolean = True
+
+            T_NAS.NASCount = 1
+            Do Until (T_NAS.NASCount <> 1)
+                T_NAS = GetNASSet(T_SegContent)
+                T_SegContent = HTML_DeleteNodeHeadTail(T_SegContent, T_NAS.NAS(0).NodeName)
+            Loop
+
+
+            For j = 1 To Seg.Content.Length
+                If Mid(Seg.Content, j, 1) = "<" Then
+                    For k = j + 1 To Seg.Content.Length
+                        If Mid(Seg.Content, k, 1) = ">" Then
+                            '### Node 하나를 찾음
+                            j = k
+                            Exit For
+                        End If
+                    Next
+                Else
+                    For k = j To Seg.Content.Length
+                        If Mid(Seg.Content, k, 1) = "<" Then
+                            '### Node 사이의 문자열을 찾은 경우
+                            T_SubSegCountPerSeg = T_SubSegCountPerSeg + 1
+                            GlobalSubSegCount = GlobalSubSegCount + 1
+                            SubSeg(GlobalSubSegCount - 1).Content = Mid(Seg.Content, j, k - j)
+                            SubSeg(GlobalSubSegCount - 1).IndexInSeg = T_SubSegCountPerSeg - 1
+                            SubSeg(GlobalSubSegCount - 1).ParentSegID = SegID
+
+                            j = k - 1
+                            Exit For
+                        End If
+                    Next
+                End If
+            Next
+        End If
+
+        Seg.SubSegCount = T_SubSegCountPerSeg
+
+        GetSubSegFromSeg = True
+    End Function
+
     Public Function GetPhraseFromSubSeg(ByVal SubSegID As Integer, ByRef SubSeg As HTML_SUBSEG,
                                         ByRef Phrase() As HTML_PHRASE, ByRef GlobalPhraseCount As Integer) As Boolean
         GetPhraseFromSubSeg = False
@@ -395,6 +668,121 @@
         GlobalPhraseCount = T_PhrasesCount
 
         GetPhraseFromSubSeg = True
+    End Function
+
+
+    Public Sub UpdateSegment(ByRef SegTranslated As Boolean, ByRef Seg As HTML_SEG, ByRef SegTrans As String,
+                             ByVal SubSegID As Integer, ByVal PhraseID As Integer,
+                             ByVal PhraseDivided As Boolean, ByVal Phrase As String)
+
+        Dim sSrcSegment As String = Nothing
+
+        Select Case SegTranslated
+            Case True
+                sSrcSegment = SegTrans
+            Case False
+                sSrcSegment = Seg.Content
+        End Select
+
+
+        Dim sSrcLeft As String = Nothing
+        Dim sSrcRight As String = Nothing
+
+        Dim nSubSegCount As Integer = 0
+
+        For i = 1 To sSrcSegment.Length
+            If Mid(sSrcSegment, i, 1) = "<" Then
+                For j = i + 1 To sSrcSegment.Length
+                    If Mid(sSrcSegment, j, 1) = ">" Then
+                        i = j
+                        Exit For
+                    End If
+                Next
+            Else
+                For j = i To sSrcSegment.Length
+                    If Mid(sSrcSegment, j, 1) = "<" Then
+
+                        If nSubSegCount = SubSegID Then
+                            '### SubSegment 찾음!! 번역하자 ###
+
+                            Select Case PhraseDivided
+                                Case True
+                                    '### Phrase 구분이 되어 있으면?
+                                    Dim sSubSeg As String = Mid(sSrcSegment, i, j - i)
+                                    Dim UpdatedContent As String = UpdateSubSegment(PhraseID, Phrase, sSubSeg)
+
+                                    sSrcLeft = Strings.Left(sSrcSegment, i - 1)
+                                    sSrcRight = Mid(sSrcSegment, j, sSrcSegment.Length)
+
+                                    SegTrans = sSrcLeft & UpdatedContent & sSrcRight
+                                    SegTranslated = True
+
+                                Case False
+                                    '### Phrase 구분이 없으면?
+                                    sSrcLeft = Strings.Left(sSrcSegment, i - 1)
+                                    sSrcRight = Mid(sSrcSegment, j, sSrcSegment.Length)
+
+                                    SegTrans = sSrcLeft & Phrase & sSrcRight
+                                    SegTranslated = True
+                            End Select
+
+                            Exit Sub
+                        End If
+
+                        i = j - 1
+                        nSubSegCount = nSubSegCount + 1
+
+                        Exit For
+                    End If
+                Next
+            End If
+        Next
+
+    End Sub
+
+    Private Function UpdateSubSegment(ByVal PhraseID As Integer, ByVal Phrase As String, ByVal SubSeg As String) As String
+        UpdateSubSegment = Nothing
+
+        '### 변수 선언 및 초기화
+        Dim nPhraseCount As Integer = 0
+        Dim T_Phrases(PHRASE_PER_SUBSEG) As HTML_PHRASE
+        Dim T_SubSeg As HTML_SUBSEG
+        T_SubSeg.Content = SubSeg
+
+        '### SubSeg로부터 Phrase구하기 ★
+        GetPhraseFromSubSeg(0, T_SubSeg, T_Phrases, nPhraseCount)
+
+        '### 현재 Phrase 내용 변경하기 ★
+        T_Phrases(PhraseID).Content = Phrase
+
+        '### Phrase 끝부분에 구두점 붙이기★
+        If PhraseID = nPhraseCount Then
+            '### 마지막 Phrase면 마지막에 점이 있든 없든 상관이 없다!
+        Else
+            '### 마지막 Phrase가 아니라면 반드시 '. '가 있어야 한다!!!
+            If Strings.Right(T_Phrases(PhraseID).Content, 1) <> " " Then
+                If Strings.Right(T_Phrases(PhraseID).Content, 1) <> "." Then T_Phrases(PhraseID).Content = T_Phrases(PhraseID).Content & "."
+                T_Phrases(PhraseID).Content = T_Phrases(PhraseID).Content & " "
+            Else
+                Dim FountPeriod As Boolean = False
+
+                For i = 1 To T_Phrases(PhraseID).Content.Length
+                    If Mid(T_Phrases(PhraseID).Content, i, 2) = ". " Then
+                        FountPeriod = True
+                    End If
+                Next
+
+                If FountPeriod = False Then
+                    T_Phrases(PhraseID).Content = T_Phrases(PhraseID).Content & "."
+                End If
+            End If
+        End If
+
+        For i = 0 To nPhraseCount - 1
+            UpdateSubSegment = UpdateSubSegment & T_Phrases(i).Content & " "
+        Next
+
+        UpdateSubSegment = UpdateSubSegment
     End Function
 
 End Module

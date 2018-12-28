@@ -8,396 +8,151 @@ Public Class FrmMain
     Dim g_FontSentence As New Font("맑은 고딕", 10, FontStyle.Regular)
     Dim g_nPrevLVSTIndex As Integer = 0
 
-    Dim g_sHTMLOrg As String
-    Dim g_sHTMLBef As String
-    Dim g_sHTMLBODY As String
-    Dim g_sHTMLAft As String
+    Dim g_HTMLText As HTML_TEXT
+    Dim g_HTMLText_T As HTML_TEXT
 
-    Dim g_sHTMLTrs As String
+    Dim g_HTMLSegOrg(MAX_HTMLSEGMENT) As HTML_SEG
+    Dim g_sHTMLSegTrs(MAX_HTMLSEGMENT) As String
+    Dim g_nHTMLSegCount As Integer = 0
+    Dim g_bHTMLSegTranslated(MAX_HTMLSEGMENT) As Boolean
 
-    Dim g_HTMLOrgSegs(MAX_HTMLSEGMENT) As HTML_SEG
-    Dim g_sHTMLTrsSegs(MAX_HTMLSEGMENT) As String
-    Dim g_nHTMLSegsCount As Integer = 0
+    Dim g_HTMLSubSeg(MAX_HTMLSUBSEGMENT) As HTML_SUBSEG
+    Dim g_nHTMLSubSegCount As Integer = 0
 
-    Dim g_HTMLSubSegs(MAX_HTMLSUBSEGMENT) As HTML_SUBSEG
-    Dim g_nHTMLSubSegsCount As Integer = 0
+    Dim g_PhraseOrg(MAX_PHRASE) As HTML_PHRASE
+    Dim g_nPhraseCount As Integer = 0
+    Dim g_sPhraseTrs(MAX_PHRASE) As String
 
-    Dim g_STPhrases(MAX_PHRASE) As HTML_PHRASE
-    Dim g_nSTPhrasesCount As Integer = 0
-    Dim g_sTTPhrases(MAX_PHRASE) As String
-
-    Dim g_bPhraseTranslated(MAX_PHRASE) As Boolean
-    Dim g_bSegTranslated(MAX_HTMLSEGMENT) As Boolean
-
+    '### HTML파일이 저장될 파일과 폴더
     Dim g_sDIR_HTML As String = Nothing
     Dim g_sFN_HTML As String = Nothing
 
+    '### WebBrowser 스크롤바 위치 저장
     Dim g_WBScrollTop As Integer
     Dim g_WBScrollLeft As Integer
 
     Public Sub DeleteFileAndDir()
-
-        If g_sFN_HTML <> "" Then
-            If My.Computer.FileSystem.FileExists(g_sFN_HTML) = True Then
-                My.Computer.FileSystem.DeleteFile(g_sFN_HTML)
-            End If
-        End If
-
-        If g_sDIR_HTML <> "" Then
-            If My.Computer.FileSystem.DirectoryExists(g_sDIR_HTML) = True Then
-                My.Computer.FileSystem.DeleteDirectory(g_sDIR_HTML, FileIO.DeleteDirectoryOption.DeleteAllContents)
-            End If
-        End If
-
+        SAFE_DELETE_FILE(g_sFN_HTML)
+        SAFE_DELETE_DIR(g_sDIR_HTML)
     End Sub
 
     Public Sub HTML_ParseIntoPhrases()
-
         If FileIO.FileSystem.FileExists(g_sFN_HTML) = False Then Exit Sub
 
-        g_sHTMLOrg = FileIO.FileSystem.ReadAllText(g_sFN_HTML, System.Text.Encoding.Default)
-        g_sHTMLTrs = g_sHTMLOrg
+        Dim T_HTMLText As String = FileIO.FileSystem.ReadAllText(g_sFN_HTML, System.Text.Encoding.Default)
+        g_HTMLText.ReadFromText(T_HTMLText)
+        g_HTMLText_T = g_HTMLText
 
-        g_sHTMLBef = HTML_GetBeforeNodeHead(g_sHTMLOrg, "body")
-        g_sHTMLAft = HTML_GetAfterNodeTail(g_sHTMLOrg, "body")
-        g_sHTMLBODY = HTML_GetIntraNode(g_sHTMLOrg, "body")
+        '### HTML_PARSE_01: Seg 구하기 ###
+        g_nHTMLSegCount = GetSegFromHTMLBody(g_HTMLText.Body, g_HTMLSegOrg)
 
-        '### Seg 구하기 ###
-        g_nHTMLSegsCount = 0
-        For i = 1 To g_sHTMLBODY.Length
-            If Mid(g_sHTMLBODY, i, 2) = "<p" Then
+        If g_nHTMLSegCount = 0 Then Exit Sub
 
-                '### <p ~>인 경우!
-                g_nHTMLSegsCount = g_nHTMLSegsCount + 1
-                For j = i + 1 To g_sHTMLBODY.Length
-                    If Mid(g_sHTMLBODY, j, 4) = "</p>" Then
-                        g_HTMLOrgSegs(g_nHTMLSegsCount - 1).Content = Mid(g_sHTMLBODY, i, j - i + 4)
-                        g_HTMLOrgSegs(g_nHTMLSegsCount - 1).Content = g_HTMLOrgSegs(g_nHTMLSegsCount - 1).Content.Replace(vbCrLf, " ")
-                        i = j + 3
-                        Exit For
-                    End If
-                Next
-            ElseIf Mid(g_sHTMLBODY, i, 1) = "<" Then
-                '### <p ~>는 아니지만 노드가 있는 경우 다음 <p ~> / </body> 전까지 저장해 두자 (그래야 나중에 복원할 수 있으니까)
-
-                If Mid(g_sHTMLBODY, i, 7) = "</body>" Then
-                    '### </body>나오면 Phrase 파싱 끝내기!
-                    Exit For
-                End If
-
-                g_nHTMLSegsCount = g_nHTMLSegsCount + 1
-                For j = i + 1 To g_sHTMLBODY.Length
-                    If Mid(g_sHTMLBODY, j, 2) = "<p" Or j = g_sHTMLBODY.Length Then
-                        g_HTMLOrgSegs(g_nHTMLSegsCount - 1).Content = Mid(g_sHTMLBODY, i, j - i)
-                        g_HTMLOrgSegs(g_nHTMLSegsCount - 1).Content = g_HTMLOrgSegs(g_nHTMLSegsCount - 1).Content.Replace(vbCrLf, " ")
-                        i = j - 1
-                        Exit For
-                    End If
-                Next
-            End If
+        '### Seg에서 <span lang=~> 지우기: 각 HTML Segment 당 실행 (<p ~> ~ </p>)
+        For i = 0 To g_nHTMLSegCount - 1
+            HTML_DeleteSpanLang(g_HTMLSegOrg(i))
         Next
 
+        '### HTML_PARSE_02: SubSeg 찾기: 각 HTML Segment 당 실행 (<p ~> ~ </p>)
+        For i = 0 To g_nHTMLSegCount - 1
+            GetSubSegFromSeg(i, g_HTMLSegOrg(i), g_HTMLSubSeg, g_nHTMLSubSegCount)
+        Next
 
-        If g_nHTMLSegsCount > 0 Then
-            Dim HTMLNode As HTML_NODE_INFO
+        '### HTML_PARSE_03: Phrase(문장) 나누기 ★ ###
+        g_nPhraseCount = 0
+        For i = 0 To g_nHTMLSubSegCount - 1
+            GetPhraseFromSubSeg(i, g_HTMLSubSeg(i), g_PhraseOrg, g_nPhraseCount)
+        Next
 
-            '### Seg에서 <span lang=~> 지우기: 각 HTML Segment 당 실행 (<p ~> ~ </p>)
-            For i = 0 To g_nHTMLSegsCount - 1
-                For j = 1 To g_HTMLOrgSegs(i).Content.Length
-                    If Mid(g_HTMLOrgSegs(i).Content, j, 1) = "<" Then
-                        For k = j + 1 To g_HTMLOrgSegs(i).Content.Length
-                            If Mid(g_HTMLOrgSegs(i).Content, k, 1) = ">" Then
-                                '### Node 하나를 찾음
-                                HTMLNode = HTML_GetNodeInfo(Mid(g_HTMLOrgSegs(i).Content, j, k - j + 1))
-
-                                If HTMLNode.NodeName = "span" And HTMLNode.ElementCount = 1 And HTMLNode.ElementName(0) = "lang" Then
-                                    '### 찾은 Node가 <span lang=~~>일 경우 없애자!!★★
-                                    For l = k + 1 To g_HTMLOrgSegs(i).Content.Length
-                                        If Mid(g_HTMLOrgSegs(i).Content, l, 7) = "</span>" Then
-                                            Dim sLeft As String = Nothing
-                                            Dim sMid As String = Nothing
-                                            Dim sRight As String = Nothing
-
-                                            sLeft = Strings.Left(g_HTMLOrgSegs(i).Content, j - 1)
-                                            sMid = Mid(g_HTMLOrgSegs(i).Content, k + 1, l - k - 1)
-                                            sRight = Strings.Mid(g_HTMLOrgSegs(i).Content, l + 7, g_HTMLOrgSegs(i).Content.Length)
-
-                                            g_HTMLOrgSegs(i).Content = sLeft & sMid & sRight
-                                            Exit For
-                                        End If
-                                    Next
-
-                                    Exit For
-                                Else
-                                    '### 그렇지 않은 Node일 경우
-                                    j = k
-                                    Exit For
-                                End If
-                            End If
-                        Next
-                    End If
-                Next
-            Next
-
-            '### SubSeg 찾기: 각 HTML Segment 당 실행 (<p ~> ~ </p>)
-            Dim nSubSegCountPerSeg As Integer = 0
-            For i = 0 To g_nHTMLSegsCount - 1
-                nSubSegCountPerSeg = 0
-
-                If Strings.Left(g_HTMLOrgSegs(i).Content, 2) = "<p" Then
-                    '### <p ~>일 때만 SubSeg를 찾는다!★★
-                    For j = 1 To g_HTMLOrgSegs(i).Content.Length
-                        If Mid(g_HTMLOrgSegs(i).Content, j, 1) = "<" Then
-                            For k = j + 1 To g_HTMLOrgSegs(i).Content.Length
-                                If Mid(g_HTMLOrgSegs(i).Content, k, 1) = ">" Then
-                                    '### Node 하나를 찾음
-                                    j = k
-                                    Exit For
-                                End If
-                            Next
-                        Else
-                            For k = j To g_HTMLOrgSegs(i).Content.Length
-                                If Mid(g_HTMLOrgSegs(i).Content, k, 1) = "<" Then
-                                    '### Node 사이의 문자열을 찾은 경우
-                                    nSubSegCountPerSeg = nSubSegCountPerSeg + 1
-                                    g_nHTMLSubSegsCount = g_nHTMLSubSegsCount + 1
-                                    g_HTMLSubSegs(g_nHTMLSubSegsCount - 1).Content = Mid(g_HTMLOrgSegs(i).Content, j, k - j)
-                                    g_HTMLSubSegs(g_nHTMLSubSegsCount - 1).IndexInSeg = nSubSegCountPerSeg - 1
-                                    g_HTMLSubSegs(g_nHTMLSubSegsCount - 1).ParentSegID = i
-
-                                    j = k - 1
-                                    Exit For
-                                End If
-                            Next
-                        End If
-                    Next
-                End If
-
-                g_HTMLOrgSegs(i).SubSegCount = nSubSegCountPerSeg
-            Next
-
-            '### Phrase(문장) 나누기 ★ ###
-            g_nSTPhrasesCount = 0
-            For i = 0 To g_nHTMLSubSegsCount - 1
-                GetPhraseFromSubSeg(i, g_HTMLSubSegs(i), g_STPhrases, g_nSTPhrasesCount)
-            Next
-
-        End If
-
+        '### ListView에 Phrase 채우기
         LVST.Items.Clear()
-        If g_nSTPhrasesCount > 0 Then
-            For i = 0 To g_nSTPhrasesCount - 1
-                g_STPhrases(i).Content = Net.WebUtility.HtmlDecode(g_STPhrases(i).Content)
-                LVST.Items.Add(New ListViewItem({"", i + 1, g_STPhrases(i).Content, ""}))
+        If g_nPhraseCount > 0 Then
+            For i = 0 To g_nPhraseCount - 1
+                g_PhraseOrg(i).Content = Net.WebUtility.HtmlDecode(g_PhraseOrg(i).Content)
+                LVST.Items.Add(New ListViewItem({"", i + 1, g_PhraseOrg(i).Content, ""}))
             Next
         End If
 
     End Sub
 
-    Private Function UpdateSubSegment(ByVal PhraseID As Integer, ByVal Phrase As String, ByVal SubSeg As String) As String
-        UpdateSubSegment = Nothing
-
-        '### 변수 선언 및 초기화
-        Dim nPhraseCount As Integer = 0
-        Dim T_Phrases(PHRASE_PER_SUBSEG) As HTML_PHRASE
-        Dim T_SubSeg As HTML_SUBSEG
-        T_SubSeg.Content = SubSeg
-
-        GetPhraseFromSubSeg(0, T_SubSeg, T_Phrases, nPhraseCount)
-
-        '### 현재 Phrase 내용 변경하기 ★
-        T_Phrases(PhraseID).Content = Phrase
-
-        '### 마지막 Phrase에 구두점 붙이기★
-        If PhraseID = nPhraseCount Then
-            '### 마지막 Phrase면 마지막에 점이 있든 없든 상관이 없다!
-        Else
-            '### 마지막 Phrase가 아니라면 반드시 '. '가 있어야 한다!!!
-            If Strings.Right(T_Phrases(PhraseID).Content, 1) <> " " Then
-                If Strings.Right(T_Phrases(PhraseID).Content, 1) <> "." Then T_Phrases(PhraseID).Content = T_Phrases(PhraseID).Content & "."
-                T_Phrases(PhraseID).Content = T_Phrases(PhraseID).Content & " "
-            Else
-                Dim FountPeriod As Boolean = False
-
-                For i = 1 To T_Phrases(PhraseID).Content.Length
-                    If Mid(T_Phrases(PhraseID).Content, i, 2) = ". " Then
-                        FountPeriod = True
-                    End If
-                Next
-
-                If FountPeriod = False Then
-                    T_Phrases(PhraseID).Content = T_Phrases(PhraseID).Content & "."
-                End If
-            End If
-        End If
-
-
-        For i = 0 To nPhraseCount - 1
-            UpdateSubSegment = UpdateSubSegment & T_Phrases(i).Content & " "
-        Next
-
-        UpdateSubSegment = UpdateSubSegment
-    End Function
-
-    Private Sub UpdateSegment(ByVal SegID As Integer, ByVal SubSegID As Integer, ByVal PhraseID As Integer,
-                              ByVal PhraseDivided As Boolean, ByVal Phrase As String)
-
-        Dim sSrcSegment As String = Nothing
-
-        Select Case g_bSegTranslated(SegID)
-            Case True
-                sSrcSegment = g_sHTMLTrsSegs(SegID)
-            Case False
-                sSrcSegment = g_HTMLOrgSegs(SegID).Content
-        End Select
-
-
-        Dim sSrcLeft As String = Nothing
-        Dim sSrcRight As String = Nothing
-
-        Dim nSubSegCount As Integer = 0
-
-        For i = 1 To sSrcSegment.Length
-            If Mid(sSrcSegment, i, 1) = "<" Then
-                For j = i + 1 To sSrcSegment.Length
-                    If Mid(sSrcSegment, j, 1) = ">" Then
-                        i = j
-                        Exit For
-                    End If
-                Next
-            Else
-                For j = i To sSrcSegment.Length
-                    If Mid(sSrcSegment, j, 1) = "<" Then
-
-                        If nSubSegCount = SubSegID Then
-                            '### SubSegment 찾음!! 번역하자 ###
-
-                            Select Case PhraseDivided
-                                Case True
-                                    '### Phrase 구분이 되어 있으면?
-                                    Dim sSubSeg As String = Mid(sSrcSegment, i, j - i)
-                                    Dim UpdatedContent As String = UpdateSubSegment(PhraseID, Phrase, sSubSeg)
-
-                                    sSrcLeft = Strings.Left(sSrcSegment, i - 1)
-                                    sSrcRight = Mid(sSrcSegment, j, sSrcSegment.Length)
-
-                                    g_sHTMLTrsSegs(SegID) = sSrcLeft & UpdatedContent & sSrcRight
-                                    g_bSegTranslated(SegID) = True
-
-                                Case False
-                                    '### Phrase 구분이 없으면?
-                                    sSrcLeft = Strings.Left(sSrcSegment, i - 1)
-                                    sSrcRight = Mid(sSrcSegment, j, sSrcSegment.Length)
-
-                                    g_sHTMLTrsSegs(SegID) = sSrcLeft & Phrase & sSrcRight
-                                    g_bSegTranslated(SegID) = True
-                            End Select
-
-                            Exit Sub
-                        End If
-
-                        i = j - 1
-                        nSubSegCount = nSubSegCount + 1
-
-                        Exit For
-                    End If
-                Next
-            End If
-        Next
-
-    End Sub
 
     Public Sub TranslatePhrase(ByVal CurItemID As Integer)
-        Dim CurSegID As Integer = g_STPhrases(CurItemID).ParentSegID
-        Dim CurSubSegRelID As Integer = g_HTMLSubSegs(g_STPhrases(CurItemID).ParentSubSegID).IndexInSeg
-        Dim CurPhraseRelID As Integer = g_STPhrases(CurItemID).IndexInSubSeg
+        Dim CurSegID As Integer = g_PhraseOrg(CurItemID).ParentSegID
+        Dim CurSubSegRelID As Integer = g_HTMLSubSeg(g_PhraseOrg(CurItemID).ParentSubSegID).IndexInSeg
+        Dim CurPhraseRelID As Integer = g_PhraseOrg(CurItemID).IndexInSubSeg
 
-        g_sTTPhrases(CurItemID) = TBTTSentence.Text
+        g_sPhraseTrs(CurItemID) = TBTTSentence.Text
 
         Dim bPhraseDivided As Boolean = False
 
-        If g_HTMLSubSegs(g_STPhrases(CurItemID).ParentSubSegID).PhraseCount > 1 Then
+        If g_HTMLSubSeg(g_PhraseOrg(CurItemID).ParentSubSegID).PhraseCount > 1 Then
             '### 문장 구분이 있다!
             bPhraseDivided = True
         End If
 
-        '### TT에 아무 내용도 없으면? 번역하지 말기!
-        If g_sTTPhrases(CurItemID) = "" Then Exit Sub
+        '### PhraseTrs에 아무 내용도 없으면? 번역하지 말기!
+        If g_sPhraseTrs(CurItemID) = "" Then Exit Sub
 
-        Dim sTrgEncoded As String = HTML_Encode(g_sTTPhrases(CurItemID))
-        UpdateSegment(CurSegID, CurSubSegRelID, CurPhraseRelID, bPhraseDivided, sTrgEncoded)
+        '### PhraseTrs에 내용이 있으니까 번역하기! ★
+        Dim sTrgEncoded As String = HTML_Encode(g_sPhraseTrs(CurItemID))
+        UpdateSegment(g_bHTMLSegTranslated(CurSegID), g_HTMLSegOrg(CurSegID), g_sHTMLSegTrs(CurSegID), CurSubSegRelID, CurPhraseRelID, bPhraseDivided, sTrgEncoded)
 
         '### ListView에 수정!
-        LVST.Items(CurItemID).SubItems(3).Text = g_sTTPhrases(CurItemID)
+        LVST.Items(CurItemID).SubItems(3).Text = g_sPhraseTrs(CurItemID)
 
         '### 이제 HTML 수정!!
         UpdateHTMLText()
-
-        g_bPhraseTranslated(CurItemID) = True
     End Sub
 
     Public Sub UpdateHTMLText()
-        g_sHTMLTrs = g_sHTMLBef
-        For i = 0 To g_nHTMLSegsCount - 1
-            If g_bSegTranslated(i) = True Then
-                g_sHTMLTrs = g_sHTMLTrs & g_sHTMLTrsSegs(i)
+        g_HTMLText_T.Body = Nothing
+
+        For i = 0 To g_nHTMLSegCount - 1
+            If g_bHTMLSegTranslated(i) = True Then
+                g_HTMLText_T.Body = g_HTMLText_T.Body & g_sHTMLSegTrs(i)
             Else
-                g_sHTMLTrs = g_sHTMLTrs & g_HTMLOrgSegs(i).Content
+                g_HTMLText_T.Body = g_HTMLText_T.Body & g_HTMLSegOrg(i).Content
             End If
         Next
 
-        g_sHTMLTrs = g_sHTMLTrs & g_sHTMLAft
-
-        '### 바뀐 HTML을 저장한다
+        '### WebBrowser 스크롤 지정
         g_WBScrollTop = WBTT.Document.Body.ScrollTop
         g_WBScrollLeft = WBTT.Document.Body.ScrollLeft
 
-        FileIO.FileSystem.WriteAllText(g_sFN_HTML, g_sHTMLTrs, False)
+        '### 바뀐 HTML을 저장한다
+        FileIO.FileSystem.WriteAllText(g_sFN_HTML, g_HTMLText_T.GetText, False)
         WBTT.Navigate(g_sFN_HTML)
     End Sub
 
     Public Sub UntranslatePhrase(ByVal PhraseID As Integer)
-        TBTTSentence.Text = g_STPhrases(PhraseID).Content
+        TBTTSentence.Text = g_PhraseOrg(PhraseID).Content
         TranslatePhrase(PhraseID)
 
         TBTTSentence.Text = Nothing
-        g_sTTPhrases(PhraseID) = Nothing
+        g_sPhraseTrs(PhraseID) = Nothing
         LVST.Items(PhraseID).SubItems(3).Text = Nothing
-        g_bPhraseTranslated(PhraseID) = False
     End Sub
 
     Private Sub InitializeVariables()
         '### 변수 초기화★ ###
 
-        g_sHTMLOrg = Nothing
-        g_sHTMLBef = Nothing
-        g_sHTMLBODY = Nothing
-        g_sHTMLAft = Nothing
-        g_sHTMLTrs = Nothing
+        g_HTMLText.Clear()
+        g_HTMLText_T = g_HTMLText
 
-        g_nHTMLSegsCount = 0
+        g_nHTMLSegCount = 0
         For i = 0 To MAX_HTMLSEGMENT
-            g_HTMLOrgSegs(i).Content = Nothing
-            g_HTMLOrgSegs(i).SubSegCount = 0
-            g_bSegTranslated(i) = False
+            g_HTMLSegOrg(i).Clear()
         Next
 
-        g_nHTMLSubSegsCount = 0
+        g_nHTMLSubSegCount = 0
         For i = 0 To MAX_HTMLSUBSEGMENT
-            g_HTMLSubSegs(i).Content = Nothing
-            g_HTMLSubSegs(i).IndexInSeg = 0
-            g_HTMLSubSegs(i).ParentSegID = 0
-            g_HTMLSubSegs(i).PhraseCount = 0
+            g_HTMLSubSeg(i).Clear()
         Next
 
-        g_nSTPhrasesCount = 0
+        g_nPhraseCount = 0
         For i = 0 To MAX_PHRASE
-            g_STPhrases(i).Content = Nothing
-            g_STPhrases(i).ParentSegID = 0
-            g_STPhrases(i).ParentSubSegID = 0
-
-            g_sTTPhrases(i) = Nothing
-            g_bPhraseTranslated(i) = False
+            g_PhraseOrg(i).Clear()
+            g_sPhraseTrs(i) = Nothing
         Next
 
     End Sub
@@ -425,14 +180,12 @@ Public Class FrmMain
     End Sub
 
     Private Sub MainFrm_Closing(sender As Object, e As CancelEventArgs) Handles Me.Closing
-
         g_objDoc = Nothing
         g_objWord = Nothing
 
         DeleteFileAndDir()
 
-        End
-
+        End '### 프로그램 안전하게 끝내기★
     End Sub
 
     Private Sub 열기ToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles 열기ToolStripMenuItem.Click
@@ -538,8 +291,8 @@ Public Class FrmMain
 
     Private Sub LVST_SelectedIndexChanged(sender As Object, e As EventArgs) Handles LVST.SelectedIndexChanged
         If LVST.FocusedItem IsNot Nothing Then
-            TBSTSentence.Text = g_STPhrases(LVST.FocusedItem.Index).Content
-            TBTTSentence.Text = g_sTTPhrases(LVST.FocusedItem.Index)
+            TBSTSentence.Text = g_PhraseOrg(LVST.FocusedItem.Index).Content
+            TBTTSentence.Text = g_sPhraseTrs(LVST.FocusedItem.Index)
         End If
     End Sub
 
@@ -556,12 +309,12 @@ Public Class FrmMain
         If e.KeyCode = Keys.Enter Then
             e.SuppressKeyPress = True '엔터 키 눌림 방지
 
-            If g_sTTPhrases(g_nPrevLVSTIndex) <> TBTTSentence.Text Then
+            If g_sPhraseTrs(g_nPrevLVSTIndex) <> TBTTSentence.Text Then
                 '### 달라진 게 있으면 반영하자!
 
                 If TBTTSentence.Text = "" Then
                     '### TBTTSentence.Text가 Null인 경우
-                    TBTTSentence.Text = g_sTTPhrases(g_nPrevLVSTIndex)
+                    TBTTSentence.Text = g_sPhraseTrs(g_nPrevLVSTIndex)
                 Else
                     '### TBTTSentence.Text가 Null이 아닌 경우
                     TranslatePhrase(g_nPrevLVSTIndex)
