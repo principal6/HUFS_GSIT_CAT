@@ -67,18 +67,18 @@ Partial Class MainFrm
         Me.TBSTSentence.Name = "TBSTSentence"
         Me.TBSTSentence.ReadOnly = True
         Me.TBSTSentence.ScrollBars = System.Windows.Forms.ScrollBars.Both
-        Me.TBSTSentence.Size = New System.Drawing.Size(407, 151)
+        Me.TBSTSentence.Size = New System.Drawing.Size(486, 151)
         Me.TBSTSentence.TabIndex = 3
         '
         'TBTTSentence
         '
         Me.TBTTSentence.AcceptsTab = True
         Me.TBTTSentence.BackColor = System.Drawing.Color.LightGreen
-        Me.TBTTSentence.Location = New System.Drawing.Point(425, 27)
+        Me.TBTTSentence.Location = New System.Drawing.Point(510, 27)
         Me.TBTTSentence.Multiline = True
         Me.TBTTSentence.Name = "TBTTSentence"
         Me.TBTTSentence.ScrollBars = System.Windows.Forms.ScrollBars.Both
-        Me.TBTTSentence.Size = New System.Drawing.Size(407, 151)
+        Me.TBTTSentence.Size = New System.Drawing.Size(486, 151)
         Me.TBTTSentence.TabIndex = 5
         '
         'MSMainMenu
@@ -102,20 +102,20 @@ Partial Class MainFrm
         Me.열기ToolStripMenuItem.Name = "열기ToolStripMenuItem"
         Me.열기ToolStripMenuItem.ShortcutKeyDisplayString = ""
         Me.열기ToolStripMenuItem.ShortcutKeys = CType((System.Windows.Forms.Keys.Control Or System.Windows.Forms.Keys.O), System.Windows.Forms.Keys)
-        Me.열기ToolStripMenuItem.Size = New System.Drawing.Size(152, 22)
+        Me.열기ToolStripMenuItem.Size = New System.Drawing.Size(141, 22)
         Me.열기ToolStripMenuItem.Text = "열기"
         '
         '저장ToolStripMenuItem
         '
         Me.저장ToolStripMenuItem.Name = "저장ToolStripMenuItem"
         Me.저장ToolStripMenuItem.ShortcutKeys = CType((System.Windows.Forms.Keys.Control Or System.Windows.Forms.Keys.S), System.Windows.Forms.Keys)
-        Me.저장ToolStripMenuItem.Size = New System.Drawing.Size(152, 22)
+        Me.저장ToolStripMenuItem.Size = New System.Drawing.Size(141, 22)
         Me.저장ToolStripMenuItem.Text = "저장"
         '
         '종료ToolStripMenuItem
         '
         Me.종료ToolStripMenuItem.Name = "종료ToolStripMenuItem"
-        Me.종료ToolStripMenuItem.Size = New System.Drawing.Size(98, 22)
+        Me.종료ToolStripMenuItem.Size = New System.Drawing.Size(141, 22)
         Me.종료ToolStripMenuItem.Text = "종료"
         '
         'OFD

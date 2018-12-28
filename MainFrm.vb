@@ -125,11 +125,30 @@ Public Class MainFrm
         g_nHTMLSegsCount = 0
         For i = 1 To g_sHTMLBODY.Length
             If Mid(g_sHTMLBODY, i, 2) = "<p" Then
+                '### <p ~>인 경우!
                 g_nHTMLSegsCount = g_nHTMLSegsCount + 1
                 For j = i + 1 To g_sHTMLBODY.Length
                     If Mid(g_sHTMLBODY, j, 4) = "</p>" Then
                         g_HTMLOrgSegs(g_nHTMLSegsCount - 1).Content = Mid(g_sHTMLBODY, i, j - i + 4)
                         g_HTMLOrgSegs(g_nHTMLSegsCount - 1).Content = g_HTMLOrgSegs(g_nHTMLSegsCount - 1).Content.Replace(vbCrLf, " ")
+                        i = j + 3
+                        Exit For
+                    End If
+                Next
+            ElseIf Mid(g_sHTMLBODY, i, 1) = "<" Then
+                '### <p ~>는 아니지만 노드가 있는 경우 다음 <p ~> / </div> 전까지 저장해 두자 (그래야 나중에 복원할 수 있으니까)
+
+                If Mid(g_sHTMLBODY, i, 6) = "</div>" Then
+                    '### </div>나오면 Phrase 파싱 끝내기!
+                    Exit For
+                End If
+
+                g_nHTMLSegsCount = g_nHTMLSegsCount + 1
+                For j = i + 1 To g_sHTMLBODY.Length
+                    If Mid(g_sHTMLBODY, j, 2) = "<p" Or Mid(g_sHTMLBODY, j, 6) = "</div>" Then
+                        g_HTMLOrgSegs(g_nHTMLSegsCount - 1).Content = Mid(g_sHTMLBODY, i, j - i)
+                        g_HTMLOrgSegs(g_nHTMLSegsCount - 1).Content = g_HTMLOrgSegs(g_nHTMLSegsCount - 1).Content.Replace(vbCrLf, " ")
+                        i = j - 1
                         Exit For
                     End If
                 Next
@@ -180,31 +199,34 @@ Public Class MainFrm
             For i = 0 To g_nHTMLSegsCount - 1
                 nSubSegCountPerSeg = 0
 
-                For j = 1 To g_HTMLOrgSegs(i).Content.Length
-                    If Mid(g_HTMLOrgSegs(i).Content, j, 1) = "<" Then
-                        For k = j + 1 To g_HTMLOrgSegs(i).Content.Length
-                            If Mid(g_HTMLOrgSegs(i).Content, k, 1) = ">" Then
-                                '### Node 하나를 찾음
-                                j = k
-                                Exit For
-                            End If
-                        Next
-                    Else
-                        For k = j To g_HTMLOrgSegs(i).Content.Length
-                            If Mid(g_HTMLOrgSegs(i).Content, k, 1) = "<" Then
-                                '### Node 사이의 문자열을 찾은 경우
-                                nSubSegCountPerSeg = nSubSegCountPerSeg + 1
-                                g_nHTMLSubSegsCount = g_nHTMLSubSegsCount + 1
-                                g_HTMLSubSegs(g_nHTMLSubSegsCount - 1).Content = Mid(g_HTMLOrgSegs(i).Content, j, k - j)
-                                g_HTMLSubSegs(g_nHTMLSubSegsCount - 1).IndexInSeg = nSubSegCountPerSeg - 1
-                                g_HTMLSubSegs(g_nHTMLSubSegsCount - 1).ParentSegID = i
+                If Strings.Left(g_HTMLOrgSegs(i).Content, 2) = "<p" Then
+                    '### <p ~>일 때만 SubSeg를 찾는다!★★
+                    For j = 1 To g_HTMLOrgSegs(i).Content.Length
+                        If Mid(g_HTMLOrgSegs(i).Content, j, 1) = "<" Then
+                            For k = j + 1 To g_HTMLOrgSegs(i).Content.Length
+                                If Mid(g_HTMLOrgSegs(i).Content, k, 1) = ">" Then
+                                    '### Node 하나를 찾음
+                                    j = k
+                                    Exit For
+                                End If
+                            Next
+                        Else
+                            For k = j To g_HTMLOrgSegs(i).Content.Length
+                                If Mid(g_HTMLOrgSegs(i).Content, k, 1) = "<" Then
+                                    '### Node 사이의 문자열을 찾은 경우
+                                    nSubSegCountPerSeg = nSubSegCountPerSeg + 1
+                                    g_nHTMLSubSegsCount = g_nHTMLSubSegsCount + 1
+                                    g_HTMLSubSegs(g_nHTMLSubSegsCount - 1).Content = Mid(g_HTMLOrgSegs(i).Content, j, k - j)
+                                    g_HTMLSubSegs(g_nHTMLSubSegsCount - 1).IndexInSeg = nSubSegCountPerSeg - 1
+                                    g_HTMLSubSegs(g_nHTMLSubSegsCount - 1).ParentSegID = i
 
-                                j = k - 1
-                                Exit For
-                            End If
-                        Next
-                    End If
-                Next
+                                    j = k - 1
+                                    Exit For
+                                End If
+                            Next
+                        End If
+                    Next
+                End If
 
                 g_HTMLOrgSegs(i).SubSegCount = nSubSegCountPerSeg
             Next
@@ -834,8 +856,5 @@ Public Class MainFrm
         End If
     End Sub
 
-    Private Sub TBTTSentence_TextChanged(sender As Object, e As EventArgs) Handles TBTTSentence.TextChanged
-
-    End Sub
 End Class
 
