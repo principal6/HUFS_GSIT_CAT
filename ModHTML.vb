@@ -1,4 +1,10 @@
 ﻿Module ModHTML
+
+    Public Const MAX_HTMLSEGMENT As Integer = 10000
+    Public Const MAX_HTMLSUBSEGMENT As Integer = 30000
+    Public Const MAX_PHRASE As Integer = 50000
+    Public Const PHRASE_PER_SUBSEG As Integer = 1000
+
     Public Structure HTML_SEG
         Dim Content As String
         Dim SubSegCount As Integer
@@ -23,6 +29,140 @@
         Dim ElementCount As Integer
         Dim ElementName() As String
     End Structure
+
+    Public Structure HTML_NODEANDTEXT
+        Dim NODEANDTEXT As String
+        Dim StartIndex As Integer
+        Dim EndIndex As Integer
+    End Structure
+
+    Public Function HTML_DeleteNodeHeadTail(ByVal HTMLText As String, ByVal NodeName As String) As String
+        HTML_DeleteNodeHeadTail = Nothing
+
+        If HTMLText = Nothing Then Exit Function
+
+        Dim sNodeHead As String = Nothing
+        Dim sNodeTail As String = Nothing
+
+
+        For i = 1 To HTMLText.Length
+            If Mid(HTMLText, i, 1 + NodeName.Length) = "<" & NodeName Then
+                For j = i + NodeName.Length To HTMLText.Length
+                    If Mid(HTMLText, j, 1) = ">" Then
+                        '### Found the Node Head
+                        sNodeHead = Mid(HTMLText, i, j - i + 1)
+                        Exit For
+                    End If
+                Next
+                Exit For
+            End If
+        Next
+
+        '### NodeHead가 없으면 종료!★
+        If sNodeHead = Nothing Then Exit Function
+
+        sNodeTail = "</" & NodeName & ">"
+
+        HTMLText = HTMLText.Replace(sNodeHead, "")
+        HTMLText = HTMLText.Replace(sNodeTail, "")
+
+        HTML_DeleteNodeHeadTail = HTMLText
+    End Function
+
+    Public Function HTML_GetFirstNodeHead(ByVal HTMLText As String) As String
+        HTML_GetFirstNodeHead = Nothing
+
+        If HTMLText = Nothing Then Exit Function
+
+        For i = 1 To HTMLText.Length
+            If Mid(HTMLText, i, 1) = "<" Then
+                For j = i + 1 To HTMLText.Length
+                    If Mid(HTMLText, j, 1) = ">" Then
+                        '### 찾음
+                        HTML_GetFirstNodeHead = Mid(HTMLText, i, j - i + 1)
+                        Exit For
+
+                    End If
+                Next
+                Exit For
+            End If
+        Next
+    End Function
+
+    Public Function HTML_GetNodeHeadEndPos(ByVal HTMLText As String, ByVal NodeName As String) As Integer
+        HTML_GetNodeHeadEndPos = 0
+
+        If HTMLText = Nothing Then Exit Function
+
+        For i = 1 To HTMLText.Length
+            If Mid(HTMLText, i, NodeName.Length + 1) = "<" & NodeName Then
+                For j = i + 5 To HTMLText.Length
+                    If Mid(HTMLText, j, 1) = ">" Then
+                        HTML_GetNodeHeadEndPos = j
+
+                        Exit For
+                    End If
+                Next
+
+                Exit For
+            End If
+        Next
+    End Function
+
+    Public Function HTML_GetBeforeNodeHead(ByVal HTMLText As String, ByVal NodeName As String) As String
+        HTML_GetBeforeNodeHead = Nothing
+
+        If HTMLText = Nothing Then Exit Function
+
+        HTML_GetBeforeNodeHead = Strings.Left(HTMLText, HTML_GetNodeHeadEndPos(HTMLText, NodeName)) & vbCrLf
+    End Function
+
+    Public Function HTML_GetNodeTailStartPos(ByVal HTMLText As String, ByVal NodeName As String) As Integer
+        HTML_GetNodeTailStartPos = 0
+
+        If HTMLText = Nothing Then Exit Function
+
+        For i = 1 To HTMLText.Length
+            If Mid(HTMLText, i, NodeName.Length + 3) = "</" & NodeName & ">" Then
+                HTML_GetNodeTailStartPos = i
+                Exit For
+            End If
+        Next
+    End Function
+
+    Public Function HTML_GetAfterNodeTail(ByVal HTMLText As String, ByVal NodeName As String) As String
+        HTML_GetAfterNodeTail = Nothing
+
+        If HTMLText = Nothing Then Exit Function
+
+        HTML_GetAfterNodeTail = vbCrLf & Mid(HTMLText, HTML_GetNodeTailStartPos(HTMLText, NodeName), HTMLText.Length)
+    End Function
+
+    Public Function HTML_GetIntraNode(ByVal HTMLText As String, ByVal NodeName As String) As String
+        HTML_GetIntraNode = Nothing
+
+        If HTMLText = Nothing Then Exit Function
+
+        Dim T_StartPos As Integer = 0
+        Dim T_EndPos As Integer = 0
+
+        For i = 1 To HTMLText.Length
+            If Mid(HTMLText, i, NodeName.Length + 1) = "<" & NodeName Then
+                For j = i + 5 To HTMLText.Length
+                    If Mid(HTMLText, j, 1) = ">" Then
+                        T_StartPos = j + 1
+                        i = T_StartPos
+                        Exit For
+                    End If
+                Next
+            ElseIf Mid(HTMLText, i, NodeName.Length + 3) = "</" & NodeName & ">" Then
+                T_EndPos = i
+                Exit For
+            End If
+        Next
+
+        HTML_GetIntraNode = Mid(HTMLText, T_StartPos, T_EndPos - T_StartPos)
+    End Function
 
     Public Function HTML_GetNodeInfo(ByVal Node As String) As HTML_NODE_INFO
         HTML_GetNodeInfo.NodeName = "NOTHING"
@@ -192,4 +332,69 @@
 
         HTML_Encode = T_Output
     End Function
+
+    Public Function GetPhraseFromSubSeg(ByVal SubSegID As Integer, ByRef SubSeg As HTML_SUBSEG,
+                                        ByRef Phrase() As HTML_PHRASE, ByRef GlobalPhraseCount As Integer) As Boolean
+        GetPhraseFromSubSeg = False
+
+        '### Phrase(문장) 나누기 ★ ###
+        Dim T_PhraseCountPerSubSeg As Integer = 0
+        Dim T_PhrasesCount As Integer = GlobalPhraseCount
+        Dim T_SubSeg As HTML_SUBSEG = SubSeg
+
+        For j = 1 To T_SubSeg.Content.Length
+            If Mid(T_SubSeg.Content, j, 1) = "." Then
+
+                If j = 1 Then
+                    '### 맨 처음인데 .이 찍혀있으면 나누지 않음
+                ElseIf Mid(T_SubSeg.Content, j - 1, 1) = ">" Or Mid(T_SubSeg.Content, j - 1, 1) = "." Then
+                    '### 맨 처음 글자가 .이거나 바로 앞 글자도 .이었을 경우 나누지 않음
+                Else
+
+                    If j = T_SubSeg.Content.Length Then
+                        '### 마지막이 .이면 당연히 나눈다!
+                        T_PhrasesCount = T_PhrasesCount + 1
+                        T_PhraseCountPerSubSeg = T_PhraseCountPerSubSeg + 1
+                        Phrase(T_PhrasesCount - 1).Content = Mid(T_SubSeg.Content, 1, j)
+                        Phrase(T_PhrasesCount - 1).IndexInSubSeg = T_PhraseCountPerSubSeg - 1
+                        Phrase(T_PhrasesCount - 1).ParentSubSegID = SubSegID
+                        Phrase(T_PhrasesCount - 1).ParentSegID = T_SubSeg.ParentSegID
+                        T_SubSeg.Content = Mid(T_SubSeg.Content, j + 1, T_SubSeg.Content.Length)
+                        j = 0
+
+                    ElseIf Mid(T_SubSeg.Content, j + 1, 1) = " " Then
+                        '### 다음 글자가 띄어쓰기여도 나눈다!! ★★ (. 다음이 띄어쓰기가 아니면 안 나눈다!!★)
+                        T_PhrasesCount = T_PhrasesCount + 1
+                        T_PhraseCountPerSubSeg = T_PhraseCountPerSubSeg + 1
+                        Phrase(T_PhrasesCount - 1).Content = Mid(T_SubSeg.Content, 1, j + 1)
+                        Phrase(T_PhrasesCount - 1).IndexInSubSeg = T_PhraseCountPerSubSeg - 1
+                        Phrase(T_PhrasesCount - 1).ParentSubSegID = SubSegID
+                        Phrase(T_PhrasesCount - 1).ParentSegID = T_SubSeg.ParentSegID
+                        T_SubSeg.Content = Mid(T_SubSeg.Content, j + 2, T_SubSeg.Content.Length)
+                        j = 0
+                    End If
+                End If
+            End If
+        Next
+
+        T_SubSeg.Content = T_SubSeg.Content.Replace("&nbsp;", "") '### &nbsp; 는 빈 내용이므로 번역이 필요 없으니까!!
+
+        If T_SubSeg.Content = " " Then T_SubSeg.Content = "" '### 띄어쓰기 하나만 남았으면 없애자!
+
+        If T_SubSeg.Content <> "" Then '### 아직 내용이 남아 있으면 새로 추가!!
+            T_PhrasesCount = T_PhrasesCount + 1
+            T_PhraseCountPerSubSeg = T_PhraseCountPerSubSeg + 1
+            Phrase(T_PhrasesCount - 1).Content = SubSeg.Content
+            Phrase(T_PhrasesCount - 1).IndexInSubSeg = T_PhraseCountPerSubSeg - 1
+            Phrase(T_PhrasesCount - 1).ParentSubSegID = SubSegID
+            Phrase(T_PhrasesCount - 1).ParentSegID = SubSeg.ParentSegID
+        End If
+
+        SubSeg.PhraseCount = T_PhraseCountPerSubSeg
+
+        GlobalPhraseCount = T_PhrasesCount
+
+        GetPhraseFromSubSeg = True
+    End Function
+
 End Module

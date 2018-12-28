@@ -1,4 +1,18 @@
 ﻿Module ModString
+
+    Public Function String_ExistSpace(ByVal Text As String) As Boolean
+        String_ExistSpace = False
+
+        If Text = Nothing Then Exit Function
+
+        For i = 1 To Text.Length
+            If Mid(Text, i, 1) = " " Then
+                String_ExistSpace = True
+                Exit Function
+            End If
+        Next
+    End Function
+
     Public Function String_ReplaceByPos(ByVal Text As String, ByVal StartPos As Integer, ByVal EndPos As Integer,
         ByVal ReplaceString As String) As String
 
