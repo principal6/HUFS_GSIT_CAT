@@ -24,8 +24,8 @@ Partial Class MainFrm
     Private Sub InitializeComponent()
         Me.components = New System.ComponentModel.Container()
         Me.CMS1 = New System.Windows.Forms.ContextMenuStrip(Me.components)
-        Me.검색ToolStripMenuItem = New System.Windows.Forms.ToolStripMenuItem()
-        Me.닫기ToolStripMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.번역하기ToolStripMenuItem = New System.Windows.Forms.ToolStripMenuItem()
+        Me.번역되돌리기ToolStripMenuItem = New System.Windows.Forms.ToolStripMenuItem()
         Me.TBSTSentence = New System.Windows.Forms.TextBox()
         Me.TBTTSentence = New System.Windows.Forms.TextBox()
         Me.MSMainMenu = New System.Windows.Forms.MenuStrip()
@@ -37,27 +37,30 @@ Partial Class MainFrm
         Me.FD = New System.Windows.Forms.FontDialog()
         Me.WBTT = New System.Windows.Forms.WebBrowser()
         Me.LVST = New System.Windows.Forms.ListView()
+        Me.SFD = New System.Windows.Forms.SaveFileDialog()
         Me.CMS1.SuspendLayout()
         Me.MSMainMenu.SuspendLayout()
         Me.SuspendLayout()
         '
         'CMS1
         '
-        Me.CMS1.Items.AddRange(New System.Windows.Forms.ToolStripItem() {Me.검색ToolStripMenuItem, Me.닫기ToolStripMenuItem})
+        Me.CMS1.Items.AddRange(New System.Windows.Forms.ToolStripItem() {Me.번역하기ToolStripMenuItem, Me.번역되돌리기ToolStripMenuItem})
         Me.CMS1.Name = "CMS1"
-        Me.CMS1.Size = New System.Drawing.Size(99, 48)
+        Me.CMS1.Size = New System.Drawing.Size(171, 48)
         '
-        '검색ToolStripMenuItem
+        '번역하기ToolStripMenuItem
         '
-        Me.검색ToolStripMenuItem.Name = "검색ToolStripMenuItem"
-        Me.검색ToolStripMenuItem.Size = New System.Drawing.Size(98, 22)
-        Me.검색ToolStripMenuItem.Text = "검색"
+        Me.번역하기ToolStripMenuItem.Name = "번역하기ToolStripMenuItem"
+        Me.번역하기ToolStripMenuItem.ShortcutKeyDisplayString = "Enter"
+        Me.번역하기ToolStripMenuItem.Size = New System.Drawing.Size(170, 22)
+        Me.번역하기ToolStripMenuItem.Text = "번역하기"
         '
-        '닫기ToolStripMenuItem
+        '번역되돌리기ToolStripMenuItem
         '
-        Me.닫기ToolStripMenuItem.Name = "닫기ToolStripMenuItem"
-        Me.닫기ToolStripMenuItem.Size = New System.Drawing.Size(98, 22)
-        Me.닫기ToolStripMenuItem.Text = "닫기"
+        Me.번역되돌리기ToolStripMenuItem.Name = "번역되돌리기ToolStripMenuItem"
+        Me.번역되돌리기ToolStripMenuItem.ShortcutKeys = System.Windows.Forms.Keys.F1
+        Me.번역되돌리기ToolStripMenuItem.Size = New System.Drawing.Size(170, 22)
+        Me.번역되돌리기ToolStripMenuItem.Text = "번역 되돌리기"
         '
         'TBSTSentence
         '
@@ -142,6 +145,7 @@ Partial Class MainFrm
         '
         Me.AutoScaleDimensions = New System.Drawing.SizeF(7.0!, 12.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
+        Me.BackColor = System.Drawing.SystemColors.ControlLight
         Me.ClientSize = New System.Drawing.Size(1008, 544)
         Me.Controls.Add(Me.LVST)
         Me.Controls.Add(Me.WBTT)
@@ -150,6 +154,8 @@ Partial Class MainFrm
         Me.Controls.Add(Me.TBSTSentence)
         Me.MainMenuStrip = Me.MSMainMenu
         Me.Name = "MainFrm"
+        Me.ShowIcon = False
+        Me.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen
         Me.Text = "HUFS GSIT CAT"
         Me.CMS1.ResumeLayout(False)
         Me.MSMainMenu.ResumeLayout(False)
@@ -159,8 +165,8 @@ Partial Class MainFrm
 
     End Sub
     Friend WithEvents CMS1 As ContextMenuStrip
-    Friend WithEvents 검색ToolStripMenuItem As ToolStripMenuItem
-    Friend WithEvents 닫기ToolStripMenuItem As ToolStripMenuItem
+    Friend WithEvents 번역하기ToolStripMenuItem As ToolStripMenuItem
+    Friend WithEvents 번역되돌리기ToolStripMenuItem As ToolStripMenuItem
     Friend WithEvents TBSTSentence As TextBox
     Friend WithEvents TBTTSentence As TextBox
     Friend WithEvents MSMainMenu As MenuStrip
@@ -172,4 +178,5 @@ Partial Class MainFrm
     Friend WithEvents 저장ToolStripMenuItem As ToolStripMenuItem
     Friend WithEvents WBTT As WebBrowser
     Friend WithEvents LVST As ListView
+    Friend WithEvents SFD As SaveFileDialog
 End Class

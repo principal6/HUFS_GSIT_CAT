@@ -2,9 +2,9 @@
 Imports Microsoft.Office.Interop
 
 Public Class MainFrm
-    Public Const MAX_HTMLSEGMENT As Integer = 1000
-    Public Const MAX_HTMLSUBSEGMENT As Integer = 3000
-    Public Const MAX_PHRASE As Integer = 5000
+    Public Const MAX_HTMLSEGMENT As Integer = 10000
+    Public Const MAX_HTMLSUBSEGMENT As Integer = 30000
+    Public Const MAX_PHRASE As Integer = 50000
 
     Dim g_objWord As Word.Application
     Dim g_objDoc As Word.Document
@@ -18,31 +18,6 @@ Public Class MainFrm
     Dim g_sHTMLTAIL As String
 
     Dim g_sHTMLTrs As String
-
-    Public Structure HTML_SEG
-        Dim Content As String
-        Dim SubSegCount As Integer
-    End Structure
-
-    Public Structure HTML_SUBSEG
-        Dim Content As String
-        Dim IndexInSeg As Integer
-        Dim ParentSegID As Integer
-        Dim PhraseCount As Integer
-    End Structure
-
-    Public Structure HTML_PHRASE
-        Dim Content As String
-        Dim IndexInSubSeg As Integer
-        Dim ParentSubSegID As Integer
-        Dim ParentSegID As Integer
-    End Structure
-
-    Public Structure HTML_NODE_INFO
-        Dim NodeName As String
-        Dim ElementCount As Integer
-        Dim ElementName() As String
-    End Structure
 
     Dim g_HTMLOrgSegs(MAX_HTMLSEGMENT) As HTML_SEG
     Dim g_sHTMLTrsSegs(MAX_HTMLSEGMENT) As String
@@ -60,22 +35,9 @@ Public Class MainFrm
 
     Dim g_sDIR_HTML As String = Nothing
     Dim g_sFN_HTML As String = Nothing
-    Dim g_sFN_DOCX_T As String = Nothing
 
-    Public Function String_ReplaceByPos(ByVal Text As String, ByVal StartPos As Integer, ByVal EndPos As Integer,
-        ByVal ReplaceString As String) As String
-
-        Dim sOutput As String = Nothing
-
-        Dim T_sLeft As String = Nothing
-        Dim T_sRight As String = Nothing
-
-        T_sLeft = Strings.Left(Text, StartPos - 1)
-        T_sRight = Strings.Mid(Text, EndPos + 1, Text.Length)
-        sOutput = T_sLeft & ReplaceString & T_sRight
-
-        String_ReplaceByPos = sOutput
-    End Function
+    Dim g_WBScrollTop As Integer
+    Dim g_WBScrollLeft As Integer
 
     Public Sub DeleteFileAndDir()
 
@@ -102,8 +64,8 @@ Public Class MainFrm
         g_sHTMLTrs = g_sHTMLOrg
 
         For i = 1 To g_sHTMLOrg.Length
-            If Mid(g_sHTMLOrg, i, 4) = "<div" Then
-                For j = i + 4 To g_sHTMLOrg.Length
+            If Mid(g_sHTMLOrg, i, 5) = "<body" Then
+                For j = i + 5 To g_sHTMLOrg.Length
                     If Mid(g_sHTMLOrg, j, 1) = ">" Then
                         g_sHTMLHEAD = Strings.Left(g_sHTMLOrg, j) & vbCrLf
                         g_sHTMLBODY = Mid(g_sHTMLBODY, j + 1, g_sHTMLOrg.Length)
@@ -114,7 +76,7 @@ Public Class MainFrm
         Next
 
         For i = 1 To g_sHTMLOrg.Length
-            If Mid(g_sHTMLOrg, i, 6) = "</div>" Then
+            If Mid(g_sHTMLOrg, i, 7) = "</body>" Then
                 g_sHTMLTAIL = vbCrLf & Mid(g_sHTMLOrg, i, g_sHTMLOrg.Length)
                 g_sHTMLBODY = Strings.Left(g_sHTMLBODY, i - 1)
                 Exit For
@@ -136,16 +98,16 @@ Public Class MainFrm
                     End If
                 Next
             ElseIf Mid(g_sHTMLBODY, i, 1) = "<" Then
-                '### <p ~>는 아니지만 노드가 있는 경우 다음 <p ~> / </div> 전까지 저장해 두자 (그래야 나중에 복원할 수 있으니까)
+                '### <p ~>는 아니지만 노드가 있는 경우 다음 <p ~> / </body> 전까지 저장해 두자 (그래야 나중에 복원할 수 있으니까)
 
-                If Mid(g_sHTMLBODY, i, 6) = "</div>" Then
-                    '### </div>나오면 Phrase 파싱 끝내기!
+                If Mid(g_sHTMLBODY, i, 7) = "</body>" Then
+                    '### </body>나오면 Phrase 파싱 끝내기!
                     Exit For
                 End If
 
                 g_nHTMLSegsCount = g_nHTMLSegsCount + 1
                 For j = i + 1 To g_sHTMLBODY.Length
-                    If Mid(g_sHTMLBODY, j, 2) = "<p" Or Mid(g_sHTMLBODY, j, 6) = "</div>" Then
+                    If Mid(g_sHTMLBODY, j, 2) = "<p" Or Mid(g_sHTMLBODY, j, 7) = "</body>" Then
                         g_HTMLOrgSegs(g_nHTMLSegsCount - 1).Content = Mid(g_sHTMLBODY, i, j - i)
                         g_HTMLOrgSegs(g_nHTMLSegsCount - 1).Content = g_HTMLOrgSegs(g_nHTMLSegsCount - 1).Content.Replace(vbCrLf, " ")
                         i = j - 1
@@ -304,175 +266,6 @@ Public Class MainFrm
 
     End Sub
 
-    Public Function HTML_GetNodeInfo(ByVal Node As String) As HTML_NODE_INFO
-        HTML_GetNodeInfo.NodeName = "NOTHING"
-        HTML_GetNodeInfo.ElementCount = 0
-        ReDim HTML_GetNodeInfo.ElementName(0)
-
-        If Node.Length = 0 Then Exit Function
-
-
-        If Strings.Left(Node, 1) = "<" Then Node = Strings.Right(Node, Node.Length - 1)
-
-        Dim T_Node_Info As HTML_NODE_INFO
-
-        Dim SpaceCount As Integer = 0
-        For i = 1 To Node.Length
-            If Mid(Node, i, 1) = " " Then
-                SpaceCount = SpaceCount + 1
-            End If
-        Next
-
-        If SpaceCount = 0 Then
-            '### <b>처럼 Element가 없는 Node일 때!
-            T_Node_Info.NodeName = Strings.Left(Node, Node.Length - 1)
-            T_Node_Info.ElementCount = 0
-            ReDim T_Node_Info.ElementName(0)
-            T_Node_Info.ElementName(0) = Nothing
-            Exit Function
-        End If
-
-        T_Node_Info.NodeName = Nothing
-        T_Node_Info.ElementCount = 0
-        ReDim T_Node_Info.ElementName(SpaceCount - 1)
-        For i = 0 To SpaceCount - 1
-            T_Node_Info.ElementName(i) = Nothing
-        Next
-
-        Dim ElementCount As Integer = 0
-        Dim Prev_i As Integer = 0
-
-        For i = 1 To Node.Length
-            If Mid(Node, i, 1) = " " Or Mid(Node, i, 1) = ">" Then
-                ElementCount = ElementCount + 1
-
-                Select Case ElementCount
-                    Case 1
-                        T_Node_Info.NodeName = LCase(Mid(Node, 1, i - 1))
-                        Prev_i = i + 1
-                    Case Else
-                        For j = Prev_i To Node.Length
-                            If Mid(Node, j, 1) = "=" Then
-                                T_Node_Info.ElementCount = T_Node_Info.ElementCount + 1
-                                T_Node_Info.ElementName(ElementCount - 2) = LCase(Mid(Node, Prev_i, j - Prev_i))
-                                Exit For
-                            End If
-                        Next
-                        Prev_i = i + 1
-                End Select
-            End If
-        Next
-
-        HTML_GetNodeInfo = T_Node_Info
-    End Function
-
-    Private Function HTML_Encode_Entities(ByVal Value As String) As String
-        HTML_Encode_Entities = Value
-
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#192;", "&Agrave;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#193;", "&Aacute;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#194;", "&Acirc;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#195;", "&Atilde;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#196;", "&Auml;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#197;", "&Aring;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#198;", "&AElig;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#199;", "&Ccedil;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#200;", "&Egrave;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#201;", "&Eacute;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#202;", "&Ecirc;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#203;", "&Euml;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#204;", "&Igrave;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#205;", "&Iacute;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#206;", "&Icirc;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#207;", "&Iuml;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#208;", "&ETH;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#209;", "&Ntilde;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#210;", "&Ograve;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#211;", "&Oacute;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#212;", "&Ocirc;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#213;", "&Otilde;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#214;", "&Ouml;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#216;", "&Oslash;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#217;", "&Ugrave;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#218;", "&Uacute;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#219;", "&Ucirc;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#220;", "&Uuml;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#221;", "&Yacute;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#222;", "&THORN;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#223;", "&szlig;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#224;", "&agrave;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#225;", "&aacute;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#226;", "&acirc;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#227;", "&atilde;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#228;", "&auml;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#229;", "&aring;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#230;", "&aelig;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#231;", "&ccedil;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#232;", "&egrave;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#233;", "&eacute;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#234;", "&ecirc;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#235;", "&euml;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#236;", "&igrave;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#237;", "&iacute;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#238;", "&icirc;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#239;", "&iuml;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#240;", "&eth;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#241;", "&ntilde;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#242;", "&ograve;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#243;", "&oacute;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#244;", "&ocirc;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#245;", "&otilde;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#246;", "&ouml;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#248;", "&oslash;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#249;", "&ugrave;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#250;", "&uacute;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#251;", "&ucirc;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#252;", "&uuml;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#253;", "&yacute;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#254;", "&thorn;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#255;", "&yuml;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#338;", "&OElig;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#339;", "&oelig;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#352;", "&Scaron;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#353;", "&scaron;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#376;", "&Yuml;")
-        HTML_Encode_Entities = Replace(HTML_Encode_Entities, "&#402;", "&fnof;")
-    End Function
-
-    Private Function HTML_Encode_Space(ByVal Value As String) As String
-        Dim SpaceStartPos As Long = 0
-        Dim SpaceCount As Long = 0
-
-        For i = 1 To Value.Length
-            If Mid(Value, i, 1) = " " Then
-                If SpaceCount = 0 Then SpaceStartPos = i
-                SpaceCount = SpaceCount + 1
-            Else
-                If SpaceCount >= 2 Then
-                    Dim HTMLSpaceString As String = Nothing
-
-                    For j = 1 To SpaceCount - 1
-                        HTMLSpaceString = HTMLSpaceString & "&nbsp;"
-                    Next
-                    HTMLSpaceString = HTMLSpaceString & " "
-                    Value = String_ReplaceByPos(Value, SpaceStartPos, i - 1, HTMLSpaceString)
-                End If
-                SpaceCount = 0
-            End If
-        Next
-        HTML_Encode_Space = Value
-    End Function
-
-    Public Function HTML_Encode(ByVal Value As String) As String
-        Dim T_Output As String
-
-        T_Output = Net.WebUtility.HtmlEncode(Value)
-        T_Output = HTML_Encode_Entities(T_Output)
-        T_Output = HTML_Encode_Space(T_Output)
-
-        HTML_Encode = T_Output
-    End Function
-
     Private Function UpdateSubSegment(ByVal PhraseID As Integer, ByVal Content As String, ByVal SubSeg As String) As String
         UpdateSubSegment = Nothing
 
@@ -619,7 +412,7 @@ Public Class MainFrm
 
     End Sub
 
-    Public Sub UpdatePhrase(ByVal CurItemID As Integer)
+    Public Sub TranslatePhrase(ByVal CurItemID As Integer)
         Dim CurSegID As Integer = g_STPhrases(CurItemID).ParentSegID
         Dim CurSubSegRelID As Integer = g_HTMLSubSegs(g_STPhrases(CurItemID).ParentSubSegID).IndexInSeg
         Dim CurPhraseRelID As Integer = g_STPhrases(CurItemID).IndexInSubSeg
@@ -629,7 +422,7 @@ Public Class MainFrm
         Dim bPhraseDivided As Boolean = False
 
         If g_HTMLSubSegs(g_STPhrases(CurItemID).ParentSubSegID).PhraseCount > 1 Then
-            '### 문장 구분이 있으면
+            '### 문장 구분이 있다!
             bPhraseDivided = True
         End If
 
@@ -637,11 +430,18 @@ Public Class MainFrm
         If g_sTTPhrases(CurItemID) = "" Then Exit Sub
 
         Dim sTrgEncoded As String = HTML_Encode(g_sTTPhrases(CurItemID))
-
         UpdateSegment(CurSegID, CurSubSegRelID, CurPhraseRelID, bPhraseDivided, sTrgEncoded)
 
+        '### ListView에 수정!
+        LVST.Items(CurItemID).SubItems(3).Text = g_sTTPhrases(CurItemID)
 
         '### 이제 HTML 수정!!
+        UpdateHTMLCode()
+
+        g_bPhraseTranslated(CurItemID) = True
+    End Sub
+
+    Public Sub UpdateHTMLCode()
         g_sHTMLTrs = g_sHTMLHEAD
         For i = 0 To g_nHTMLSegsCount - 1
             If g_bSegTranslated(i) = True Then
@@ -653,10 +453,25 @@ Public Class MainFrm
 
         g_sHTMLTrs = g_sHTMLTrs & g_sHTMLTAIL
 
-        g_bPhraseTranslated(CurItemID) = True
+        '### 바뀐 HTML을 저장한다
+        g_WBScrollTop = WBTT.Document.Body.ScrollTop
+        g_WBScrollLeft = WBTT.Document.Body.ScrollLeft
+
+        FileIO.FileSystem.WriteAllText(g_sFN_HTML, g_sHTMLTrs, False)
+        WBTT.Navigate(g_sFN_HTML)
     End Sub
 
-    Private Sub InitiateVariables()
+    Public Sub UntranslatePhrase(ByVal PhraseID As Integer)
+        TBTTSentence.Text = g_STPhrases(PhraseID).Content
+        TranslatePhrase(PhraseID)
+
+        TBTTSentence.Text = Nothing
+        g_sTTPhrases(PhraseID) = Nothing
+        LVST.Items(PhraseID).SubItems(3).Text = Nothing
+        g_bPhraseTranslated(PhraseID) = False
+    End Sub
+
+    Private Sub InitializeVariables()
         '### 변수 초기화★ ###
 
         g_sHTMLOrg = Nothing
@@ -705,12 +520,13 @@ Public Class MainFrm
         LVST.Columns.Add("번역")
 
         LVST.Columns(0).Width = 0
-        LVST.Columns(1).Width = 40
+        LVST.Columns(1).Width = 42
         LVST.Columns(1).TextAlign = HorizontalAlignment.Center
         LVST.Columns(2).Width = 300
         LVST.Columns(3).Width = 280
 
-        InitiateVariables()
+        LVST.ContextMenuStrip = CMS1
+        InitializeVariables()
     End Sub
 
     Private Sub MainFrm_Closing(sender As Object, e As CancelEventArgs) Handles Me.Closing
@@ -732,7 +548,7 @@ Public Class MainFrm
 
         If OFD.FileName IsNot "" Then
 
-            InitiateVariables()
+            InitializeVariables()
 
             '### 기존에 열었던 파일의 보조 파일은 지우자 ###
             DeleteFileAndDir()
@@ -743,7 +559,6 @@ Public Class MainFrm
                 For i = 1 To g_sFN_HTML.Length
                     If Mid(g_sFN_HTML, i, 1) = "." Then
                         g_sFN_HTML = Strings.Left(g_sFN_HTML, i - 1)
-                        g_sFN_DOCX_T = g_sFN_HTML & "_T.docx"
                         g_sDIR_HTML = g_sFN_HTML & ".files"
                         g_sFN_HTML = g_sFN_HTML & ".html"
                         Exit For
@@ -796,17 +611,33 @@ Public Class MainFrm
 
         If g_sFN_HTML = Nothing Then Exit Sub
 
-        g_objWord = New Word.Application
-        g_objDoc = New Word.Document
+        SFD.FileName = Nothing
+        SFD.Title = "파일 저장하기"
+        SFD.Filter = "워드 파일(*.docx)|*.docx"
+        SFD.ShowDialog()
 
-        g_objDoc = g_objWord.Documents.Add(g_sFN_HTML)
-        g_objDoc.SaveAs2(g_sFN_DOCX_T, FileFormat:=16) '### 16 = DOCX format ###
+        If SFD.FileName IsNot "" Then
+            g_objWord = New Word.Application
+            g_objDoc = New Word.Document
 
-        g_objDoc.Close()
-        g_objWord.Quit()
+            g_objDoc = g_objWord.Documents.Add(g_sFN_HTML)
 
-        g_objDoc = Nothing
-        g_objWord = Nothing
+            Dim objInlineShape As Word.InlineShape
+
+            For Each objInlineShape In g_objWord.ActiveDocument.InlineShapes
+                '### 그림 파일 포함해서 저장!★★ ###
+                objInlineShape.LinkFormat.SavePictureWithDocument = True
+                objInlineShape.LinkFormat.BreakLink()
+            Next
+
+            g_objDoc.SaveAs2(SFD.FileName, FileFormat:=16) '### 16 = DOCX format ###
+
+            g_objDoc.Close()
+            g_objWord.Quit()
+
+            g_objDoc = Nothing
+            g_objWord = Nothing
+        End If
 
     End Sub
 
@@ -818,7 +649,7 @@ Public Class MainFrm
     End Sub
 
     Private Sub LVST_KeyDown(sender As Object, e As KeyEventArgs) Handles LVST.KeyDown
-        If e.KeyCode = Keys.F1 Or e.KeyCode = Keys.Enter Then
+        If e.KeyCode = Keys.Enter Then
             If LVST.Items.Count > 0 Then
                 g_nPrevLVSTIndex = LVST.FocusedItem.Index
                 TBTTSentence.Focus()
@@ -831,19 +662,19 @@ Public Class MainFrm
             e.SuppressKeyPress = True '엔터 키 눌림 방지
 
             If g_sTTPhrases(g_nPrevLVSTIndex) <> TBTTSentence.Text Then
-                '### 달라진 게 있으면 반영!
-                UpdatePhrase(g_nPrevLVSTIndex)
-                LVST.Items(g_nPrevLVSTIndex).SubItems(3).Text = g_sTTPhrases(g_nPrevLVSTIndex)
+                '### 달라진 게 있으면 반영하자!
 
-                '### 번역한 HTML을 저장한다
-                FileIO.FileSystem.WriteAllText(g_sFN_HTML, g_sHTMLTrs, False)
-                WBTT.Navigate(g_sFN_HTML)
-
+                If TBTTSentence.Text = "" Then
+                    '### TBTTSentence.Text가 Null인 경우
+                    TBTTSentence.Text = g_sTTPhrases(g_nPrevLVSTIndex)
+                Else
+                    '### TBTTSentence.Text가 Null이 아닌 경우
+                    TranslatePhrase(g_nPrevLVSTIndex)
+                End If
             End If
 
             LVST.Items(g_nPrevLVSTIndex).Selected = True
             LVST.Focus()
-
         ElseIf e.KeyCode = Keys.Escape Then
             LVST.Items(g_nPrevLVSTIndex).Selected = True
             LVST.Focus()
@@ -856,5 +687,31 @@ Public Class MainFrm
         End If
     End Sub
 
+    Private Sub TBSTSentence_KeyPress(sender As Object, e As KeyPressEventArgs) Handles TBSTSentence.KeyPress
+        If e.KeyChar = Convert.ToChar(1) Then
+            TBSTSentence.SelectAll()
+        End If
+    End Sub
+
+    Private Sub 번역하기ToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles 번역하기ToolStripMenuItem.Click
+        If LVST.Items.Count > 0 Then
+            g_nPrevLVSTIndex = LVST.FocusedItem.Index
+            TBTTSentence.Focus()
+        End If
+    End Sub
+
+    Private Sub 번역되돌리기ToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles 번역되돌리기ToolStripMenuItem.Click
+        If LVST.Items.Count > 0 Then
+            If MsgBox("해당 번역을 지우고 원본으로 되돌리시겠습니까?", MsgBoxStyle.YesNo, "번역 되돌리기") = vbYes Then
+                '### Phrase 번역 초기화!
+                UntranslatePhrase(LVST.FocusedItem.Index)
+            End If
+        End If
+    End Sub
+
+    Private Sub WBTT_Navigated(sender As Object, e As WebBrowserNavigatedEventArgs) Handles WBTT.Navigated
+        WBTT.Document.Body.ScrollLeft = g_WBScrollLeft
+        WBTT.Document.Body.ScrollTop = g_WBScrollTop
+    End Sub
 End Class
 
